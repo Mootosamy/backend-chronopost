@@ -8,3 +8,4 @@ python-dotenv==1.0.0
 paypalrestsdk==1.13.3
 httpx==0.25.1
 email-validator==2.1.0
+aiosmtplib==3.0.0
