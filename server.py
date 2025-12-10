@@ -109,6 +109,20 @@ async def health_check():
         "database": "connected",
         "paypal": "configured" if paypal_service else "not configured"
     }
+    @api_router.get("/test-cors")
+async def test_cors(request: Request):
+    """Test CORS configuration for frontend-backend link"""
+    origin = request.headers.get("origin", "unknown")
+    
+    return {
+        "status": "success",
+        "message": "Backend-Frontend CORS test",
+        "backend": "Render",
+        "frontend_domain": "portal.merchant.cim.mu",
+        "request_origin": origin,
+        "cors_allowed": origin in ALLOWED_ORIGINS,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 # ==================== Authentication Routes ====================
 
@@ -592,14 +606,29 @@ async def get_transaction(transaction_id: str, user_id: str = Depends(get_curren
 
 app.include_router(api_router)
 
+# Liste explicite des domaines autorisés
+ALLOWED_ORIGINS = [
+    "https://portal.merchant.cim.mu",      # Votre domaine principal
+    "http://portal.merchant.cim.mu",       # Version HTTP (au cas où)
+    "https://www.portal.merchant.cim.mu",  # Avec www
+    "http://localhost:3000",               # Dev React
+    "http://localhost:5173",               # Dev Vite
+    "http://127.0.0.1:5500",               # Live Server
+]
+
+# Récupère les origines depuis les variables d'environnement (si définies)
+env_origins = os.environ.get('CORS_ORIGINS', '')
+if env_origins:
+    ALLOWED_ORIGINS.extend(env_origins.split(','))
+
+# Configuration CORS
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ==================== App Events ====================
 
 @app.on_event("startup")
