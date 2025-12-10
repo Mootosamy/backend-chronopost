@@ -9,4 +9,4 @@ paypalrestsdk==1.13.3
 httpx>=0.27.0
 email-validator==2.1.0
 aiosmtplib==3.0.0
-paypal-checkout-sdk==1.2.2  # <-- NOUVELLE LIGNE
+paypal-checkout-sdk==1.0.1  # <-- NOUVELLE LIGNE
