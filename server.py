@@ -101,34 +101,24 @@ async def root():
         "status": "operational"
     }
 
-@api_router.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "database": "connected",
-        "paypal": "configured" if paypal_service else "not configured"
-    }
-
 @api_router.get("/test-cors")
 async def test_cors(request: Request):
     """Test CORS configuration for frontend-backend link"""
     origin = request.headers.get("origin", "unknown")
     
-    # Liste des domaines autorisés (définie plus bas)
-    ALLOWED_ORIGINS = [
-        "https://portal.merchant.cim.mu",
-        "http://portal.merchant.cim.mu",
-        "https://www.portal.merchant.cim.mu",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5500",
-    ]
-    
-    # Ajouter les origines depuis l'environnement
-    env_origins = os.environ.get('CORS_ORIGINS', '')
-    if env_origins:
-        ALLOWED_ORIGINS.extend(env_origins.split(','))
+    return {
+        "status": "success",
+        "message": "Backend-Frontend CORS test",
+        "backend": "Render",
+        "frontend_domain": "portal.merchant.cim.mu",
+        "request_origin": origin,
+        "cors_allowed": origin in ALLOWED_ORIGINS,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+@api_router.get("/test-cors")
+async def test_cors(request: Request):
+    """Test CORS configuration for frontend-backend link"""
+    origin = request.headers.get("origin", "unknown")
     
     return {
         "status": "success",
@@ -645,7 +635,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ==================== App Events ====================
 
 @app.on_event("startup")
@@ -661,3 +650,4 @@ async def shutdown_db_client():
     logger.info("Shutting down...")
     await client.close()
     logger.info("Database connection closed")
+
