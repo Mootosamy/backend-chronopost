@@ -1,78 +1,67 @@
-# paypal_service.py
 import os
-from paypalcheckoutsdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
-from paypalcheckoutsdk.orders import OrdersCreateRequest, OrdersGetRequest, OrdersCaptureRequest
-from typing import Optional, Dict
+from paypal_checkout_sdk.client import PayPalClient
+from paypal_checkout_sdk.services.orders import OrdersService
+from paypal_checkout_sdk.enums import Environment
+from typing import Dict
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class PayPalService:
-    """PayPal payment service using PayPal Checkout SDK"""
+    """PayPal payment service using PayPal Checkout SDK v1.2.2"""
     
     def __init__(self):
         self.client_id = os.getenv("PAYPAL_CLIENT_ID")
         self.client_secret = os.getenv("PAYPAL_SECRET")
-        self.mode = os.getenv("PAYPAL_MODE", "sandbox")
+        self.mode = os.getenv("PAYPAL_MODE", "sandbox").lower()
         
         if not self.client_id or not self.client_secret:
-            logger.warning("PayPal credentials not configured - PayPal service will not work")
-            # Ne pas lever d'exception immédiatement, permettre à l'application de démarrer
+            logger.warning("PayPal credentials not configured")
             self.client = None
+            self.orders_service = None
             return
         
-        # Initialize PayPal environment
         try:
-            if self.mode == "live":
-                environment = LiveEnvironment(
-                    client_id=self.client_id, 
-                    client_secret=self.client_secret
-                )
-            else:
-                environment = SandboxEnvironment(
-                    client_id=self.client_id, 
-                    client_secret=self.client_secret
-                )
+            # Déterminer l'environnement
+            environment = Environment.SANDBOX if self.mode == "sandbox" else Environment.LIVE
             
-            self.client = PayPalHttpClient(environment)
-            logger.info(f"PayPal service initialized in {self.mode} mode")
+            # Initialiser le client PayPal
+            self.client = PayPalClient(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                environment=environment
+            )
+            
+            # Initialiser le service orders
+            self.orders_service = OrdersService(self.client)
+            
+            logger.info(f"✅ PayPal service initialized in {self.mode} mode")
             
         except Exception as e:
-            logger.error(f"Failed to initialize PayPal client: {str(e)}")
+            logger.error(f"❌ Failed to initialize PayPal: {str(e)}")
             self.client = None
+            self.orders_service = None
     
     def create_order(self, amount: str, currency: str, reference: str, 
                      return_url: str, cancel_url: str) -> Dict:
-        """
-        Create a PayPal order
-        
-        Args:
-            amount: Amount as string (e.g., "1465.50")
-            currency: Currency code (e.g., "USD", "EUR")
-            reference: Merchant reference number
-            return_url: URL to redirect after successful payment
-            cancel_url: URL to redirect if payment is cancelled
-        
-        Returns:
-            Dictionary with order details
-        """
-        if not self.client:
-            raise Exception("PayPal client not initialized. Check your credentials.")
+        """Create a PayPal order"""
+        if not self.orders_service:
+            raise Exception("PayPal service not initialized. Check your credentials.")
         
         try:
-            # Convert amount format if needed (replace comma with dot)
+            # Normaliser le montant
             amount_normalized = amount.replace(',', '.').replace(' ', '')
             
-            request = OrdersCreateRequest()
-            request.prefer('return=representation')
+            # PayPal ne supporte pas Rs (MUR) directement, utiliser USD
+            paypal_currency = "USD" if currency == "Rs" else currency
             
-            request.request_body({
+            # Préparer les données de la commande
+            order_data = {
                 "intent": "CAPTURE",
                 "purchase_units": [{
                     "reference_id": reference,
                     "amount": {
-                        "currency_code": "USD" if currency == "Rs" else currency,  # Convertir Rs (MUR) en USD
+                        "currency_code": paypal_currency,
                         "value": amount_normalized
                     },
                     "description": f"Payment for order {reference}"
@@ -85,122 +74,106 @@ class PayPalService:
                     "user_action": "PAY_NOW",
                     "shipping_preference": "NO_SHIPPING"
                 }
-            })
+            }
             
-            response = self.client.execute(request)
+            # Créer la commande
+            response = self.orders_service.create_order(order_data)
             
-            # Extract approval URL
+            # Extraire l'URL d'approbation
             approval_url = None
-            for link in response.result.links:
-                if link.rel == "approve":
-                    approval_url = link.href
-                    break
+            if hasattr(response, 'links'):
+                for link in response.links:
+                    if hasattr(link, 'rel') and link.rel == "approve":
+                        approval_url = link.href
+                        break
             
-            logger.info(f"PayPal order created: {response.result.id}")
+            logger.info(f"✅ PayPal order created: {response.id}")
             
             return {
-                "order_id": response.result.id,
-                "status": response.result.status,
+                "order_id": response.id,
+                "status": response.status,
                 "approval_url": approval_url,
                 "amount": amount_normalized,
-                "currency": currency,
-                "paypal_response": response.result.dict()
+                "currency": paypal_currency,
+                "paypal_response": {
+                    "id": response.id,
+                    "status": response.status,
+                    "links": [{"rel": link.rel, "href": link.href} for link in response.links] if hasattr(response, 'links') else []
+                }
             }
+            
         except Exception as e:
-            logger.error(f"Error creating PayPal order: {str(e)}")
+            logger.error(f"❌ Error creating PayPal order: {str(e)}")
             raise Exception(f"Failed to create PayPal order: {str(e)}")
     
     def get_order(self, order_id: str) -> Dict:
-        """
-        Get PayPal order details
-        
-        Args:
-            order_id: PayPal order ID
-        
-        Returns:
-            Dictionary with order details
-        """
-        if not self.client:
-            raise Exception("PayPal client not initialized. Check your credentials.")
+        """Get order details"""
+        if not self.orders_service:
+            raise Exception("PayPal service not initialized")
         
         try:
-            request = OrdersGetRequest(order_id)
-            response = self.client.execute(request)
+            response = self.orders_service.get_order(order_id)
             
             return {
-                "order_id": response.result.id,
-                "status": response.result.status,
-                "amount": response.result.purchase_units[0].amount.value,
-                "currency": response.result.purchase_units[0].amount.currency_code,
-                "payer": response.result.payer if hasattr(response.result, 'payer') else None,
-                "paypal_response": response.result.dict()
+                "order_id": response.id,
+                "status": response.status,
+                "amount": response.purchase_units[0].amount.value if response.purchase_units else None,
+                "currency": response.purchase_units[0].amount.currency_code if response.purchase_units else None,
+                "create_time": response.create_time if hasattr(response, 'create_time') else None,
+                "update_time": response.update_time if hasattr(response, 'update_time') else None
             }
+            
         except Exception as e:
-            logger.error(f"Error getting PayPal order: {str(e)}")
+            logger.error(f"❌ Error getting PayPal order: {str(e)}")
             raise Exception(f"Failed to get PayPal order: {str(e)}")
     
     def capture_order(self, order_id: str) -> Dict:
-        """
-        Capture (complete) a PayPal order
-        
-        Args:
-            order_id: PayPal order ID
-        
-        Returns:
-            Dictionary with capture details
-        """
-        if not self.client:
-            raise Exception("PayPal client not initialized. Check your credentials.")
+        """Capture a PayPal order"""
+        if not self.orders_service:
+            raise Exception("PayPal service not initialized")
         
         try:
-            request = OrdersCaptureRequest(order_id)
-            response = self.client.execute(request)
+            # Capturer la commande
+            response = self.orders_service.capture_order(order_id)
             
-            # Extract capture details
-            capture = response.result.purchase_units[0].payments.captures[0]
+            logger.info(f"✅ PayPal order captured: {order_id}")
             
-            logger.info(f"PayPal order captured: {order_id}, capture_id: {capture.id}")
-            
+            # Extraire les détails de capture
             result = {
-                "order_id": response.result.id,
-                "status": response.result.status,
-                "capture_id": capture.id,
-                "amount": capture.amount.value,
-                "currency": capture.amount.currency_code,
-                "capture_status": capture.status,
-                "paypal_response": response.result.dict()
+                "order_id": response.id,
+                "status": response.status,
+                "capture_time": response.create_time if hasattr(response, 'create_time') else None
             }
             
-            # Ajouter les informations du payeur si disponibles
-            if hasattr(response.result, 'payer'):
-                payer = response.result.payer
+            # Ajouter les infos de capture si disponibles
+            if (hasattr(response, 'purchase_units') and response.purchase_units and
+                hasattr(response.purchase_units[0], 'payments') and
+                hasattr(response.purchase_units[0].payments, 'captures') and
+                response.purchase_units[0].payments.captures):
+                
+                capture = response.purchase_units[0].payments.captures[0]
                 result.update({
-                    "payer_email": payer.email_address,
-                    "payer_name": f"{payer.name.given_name} {payer.name.surname}",
-                    "payer_id": payer.payer_id
+                    "capture_id": capture.id,
+                    "amount": capture.amount.value,
+                    "currency": capture.amount.currency_code,
+                    "capture_status": capture.status
+                })
+            
+            # Ajouter les infos du payeur si disponibles
+            if hasattr(response, 'payer'):
+                payer = response.payer
+                result.update({
+                    "payer_email": payer.email_address if hasattr(payer, 'email_address') else None,
+                    "payer_id": payer.payer_id if hasattr(payer, 'payer_id') else None,
+                    "payer_name": f"{payer.name.given_name} {payer.name.surname}" if hasattr(payer, 'name') else None
                 })
             
             return result
+            
         except Exception as e:
-            logger.error(f"Error capturing PayPal order: {str(e)}")
+            logger.error(f"❌ Error capturing PayPal order: {str(e)}")
             raise Exception(f"Failed to capture PayPal order: {str(e)}")
-    
-    def verify_webhook_signature(self, headers: dict, body: str) -> bool:
-        """
-        Verify PayPal webhook signature
-        
-        Args:
-            headers: Request headers
-            body: Request body
-        
-        Returns:
-            True if signature is valid
-        """
-        # Pour l'instant, retourner True pour le développement
-        # IMPORTANT: Implémenter la vérification complète en production
-        logger.warning("Webhook signature verification not fully implemented")
-        return True
     
     def is_initialized(self) -> bool:
         """Check if PayPal service is properly initialized"""
-        return self.client is not None
+        return self.orders_service is not None
