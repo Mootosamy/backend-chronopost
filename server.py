@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pymongo import AsyncMongoClient
+from pymongo.errors import ConnectionFailure
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 import os
 import logging
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncMongoClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # Initialize PayPal service
@@ -676,5 +677,5 @@ async def startup_event():
 async def shutdown_db_client():
     """Cleanup on shutdown"""
     logger.info("Shutting down...")
-    client.close()
+    await client.close()
     logger.info("Database connection closed")
