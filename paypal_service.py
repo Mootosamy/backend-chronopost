@@ -1,6 +1,6 @@
 import os
-from paypalcheckoutsdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
-from paypalcheckoutsdk.orders import OrdersCreateRequest, OrdersGetRequest, OrdersCaptureRequest
+from paypal_checkout_sdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
+from paypal_checkout_sdk.orders import OrdersCreateRequest, OrdersGetRequest, OrdersCaptureRequest
 from typing import Optional, Dict
 import logging
 
