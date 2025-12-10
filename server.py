@@ -101,14 +101,7 @@ async def root():
         "status": "operational"
     }
 
-@api_router.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "database": "connected",
-        "paypal": "configured" if paypal_service else "not configured"
-    }
+
     @api_router.get("/test-cors")
 async def test_cors(request: Request):
     """Test CORS configuration for frontend-backend link"""
@@ -658,3 +651,4 @@ async def shutdown_db_client():
     logger.info("Shutting down...")
     await client.close()
     logger.info("Database connection closed")
+
