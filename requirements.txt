@@ -1,17 +1,10 @@
-fastapi==0.115.5
-uvicorn[standard]==0.34.0
-gunicorn==22.0.0
-python-dotenv==1.0.0
-motor==3.6.0
-
-pydantic==2.10.3
-pydantic-settings==2.6.1
-pydantic[email]==2.10.3
-
-python-jose[cryptography]==3.3.0
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pymongo==4.5.0
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0  # C'EST CE MODULE QUI FOURNIT 'jwt'
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.20
-
-paypal-checkout-serversdk==1.0.1
-cryptography==46.0.3
-aiosmtplib==3.0.2
+python-dotenv==1.0.0
+paypalrestsdk==1.13.3
+httpx==0.25.1
+email-validator==2.1.0
