@@ -37,9 +37,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def decode_access_token(token: str) -> Optional[dict]:
     """Decode and verify a JWT token"""
-  def decode_access_token(token: str) -> Optional[dict]:
-    """Decode and verify a JWT token"""
     try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
+    except JWTError:
+        return None
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return payload
     except JWTError:  # python-jose gère toutes les erreurs JWT avec JWTError
