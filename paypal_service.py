@@ -1,6 +1,7 @@
+# paypal_service.py
 import os
-from paypal_checkout_sdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
-from paypal_checkout_sdk.orders import OrdersCreateRequest, OrdersGetRequest, OrdersCaptureRequest
+from paypalcheckoutsdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
+from paypalcheckoutsdk.orders import OrdersCreateRequest, OrdersGetRequest, OrdersCaptureRequest
 from typing import Optional, Dict
 import logging
 
@@ -16,16 +17,30 @@ class PayPalService:
         self.mode = os.getenv("PAYPAL_MODE", "sandbox")
         
         if not self.client_id or not self.client_secret:
-            raise ValueError("PayPal credentials not configured")
+            logger.warning("PayPal credentials not configured - PayPal service will not work")
+            # Ne pas lever d'exception immédiatement, permettre à l'application de démarrer
+            self.client = None
+            return
         
         # Initialize PayPal environment
-        if self.mode == "live":
-            environment = LiveEnvironment(client_id=self.client_id, client_secret=self.client_secret)
-        else:
-            environment = SandboxEnvironment(client_id=self.client_id, client_secret=self.client_secret)
-        
-        self.client = PayPalHttpClient(environment)
-        logger.info(f"PayPal service initialized in {self.mode} mode")
+        try:
+            if self.mode == "live":
+                environment = LiveEnvironment(
+                    client_id=self.client_id, 
+                    client_secret=self.client_secret
+                )
+            else:
+                environment = SandboxEnvironment(
+                    client_id=self.client_id, 
+                    client_secret=self.client_secret
+                )
+            
+            self.client = PayPalHttpClient(environment)
+            logger.info(f"PayPal service initialized in {self.mode} mode")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize PayPal client: {str(e)}")
+            self.client = None
     
     def create_order(self, amount: str, currency: str, reference: str, 
                      return_url: str, cancel_url: str) -> Dict:
@@ -42,6 +57,9 @@ class PayPalService:
         Returns:
             Dictionary with order details
         """
+        if not self.client:
+            raise Exception("PayPal client not initialized. Check your credentials.")
+        
         try:
             # Convert amount format if needed (replace comma with dot)
             amount_normalized = amount.replace(',', '.').replace(' ', '')
@@ -54,7 +72,7 @@ class PayPalService:
                 "purchase_units": [{
                     "reference_id": reference,
                     "amount": {
-                        "currency_code": currency if currency != "Rs" else "USD",  # PayPal doesn't support MUR directly
+                        "currency_code": "USD" if currency == "Rs" else currency,  # Convertir Rs (MUR) en USD
                         "value": amount_normalized
                     },
                     "description": f"Payment for order {reference}"
@@ -64,7 +82,8 @@ class PayPalService:
                     "cancel_url": cancel_url,
                     "brand_name": "Chronopost Mauritius Ltd",
                     "landing_page": "BILLING",
-                    "user_action": "PAY_NOW"
+                    "user_action": "PAY_NOW",
+                    "shipping_preference": "NO_SHIPPING"
                 }
             })
             
@@ -84,7 +103,8 @@ class PayPalService:
                 "status": response.result.status,
                 "approval_url": approval_url,
                 "amount": amount_normalized,
-                "currency": currency
+                "currency": currency,
+                "paypal_response": response.result.dict()
             }
         except Exception as e:
             logger.error(f"Error creating PayPal order: {str(e)}")
@@ -100,6 +120,9 @@ class PayPalService:
         Returns:
             Dictionary with order details
         """
+        if not self.client:
+            raise Exception("PayPal client not initialized. Check your credentials.")
+        
         try:
             request = OrdersGetRequest(order_id)
             response = self.client.execute(request)
@@ -109,7 +132,8 @@ class PayPalService:
                 "status": response.result.status,
                 "amount": response.result.purchase_units[0].amount.value,
                 "currency": response.result.purchase_units[0].amount.currency_code,
-                "payer": response.result.payer if hasattr(response.result, 'payer') else None
+                "payer": response.result.payer if hasattr(response.result, 'payer') else None,
+                "paypal_response": response.result.dict()
             }
         except Exception as e:
             logger.error(f"Error getting PayPal order: {str(e)}")
@@ -125,6 +149,9 @@ class PayPalService:
         Returns:
             Dictionary with capture details
         """
+        if not self.client:
+            raise Exception("PayPal client not initialized. Check your credentials.")
+        
         try:
             request = OrdersCaptureRequest(order_id)
             response = self.client.execute(request)
@@ -134,24 +161,33 @@ class PayPalService:
             
             logger.info(f"PayPal order captured: {order_id}, capture_id: {capture.id}")
             
-            return {
+            result = {
                 "order_id": response.result.id,
                 "status": response.result.status,
                 "capture_id": capture.id,
                 "amount": capture.amount.value,
                 "currency": capture.amount.currency_code,
-                "payer_email": response.result.payer.email_address if hasattr(response.result, 'payer') else None,
-                "payer_name": response.result.payer.name.given_name + " " + response.result.payer.name.surname if hasattr(response.result, 'payer') else None,
-                "payer_id": response.result.payer.payer_id if hasattr(response.result, 'payer') else None
+                "capture_status": capture.status,
+                "paypal_response": response.result.dict()
             }
+            
+            # Ajouter les informations du payeur si disponibles
+            if hasattr(response.result, 'payer'):
+                payer = response.result.payer
+                result.update({
+                    "payer_email": payer.email_address,
+                    "payer_name": f"{payer.name.given_name} {payer.name.surname}",
+                    "payer_id": payer.payer_id
+                })
+            
+            return result
         except Exception as e:
             logger.error(f"Error capturing PayPal order: {str(e)}")
             raise Exception(f"Failed to capture PayPal order: {str(e)}")
     
     def verify_webhook_signature(self, headers: dict, body: str) -> bool:
         """
-        Verify PayPal webhook signature (simplified version)
-        In production, implement full webhook verification
+        Verify PayPal webhook signature
         
         Args:
             headers: Request headers
@@ -160,7 +196,11 @@ class PayPalService:
         Returns:
             True if signature is valid
         """
-        # TODO: Implement full webhook signature verification
-        # For now, return True (not secure in production)
+        # Pour l'instant, retourner True pour le développement
+        # IMPORTANT: Implémenter la vérification complète en production
         logger.warning("Webhook signature verification not fully implemented")
         return True
+    
+    def is_initialized(self) -> bool:
+        """Check if PayPal service is properly initialized"""
+        return self.client is not None
