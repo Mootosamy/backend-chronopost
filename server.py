@@ -123,6 +123,20 @@ async def test_cors(request: Request):
         "cors_allowed": origin in ALLOWED_ORIGINS,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+@api_router.get("/test-cors")
+async def test_cors(request: Request):
+    """Test CORS configuration for frontend-backend link"""
+    origin = request.headers.get("origin", "unknown")
+    
+    return {
+        "status": "success",
+        "message": "Backend-Frontend CORS test",
+        "backend": "Render",
+        "frontend_domain": "portal.merchant.cim.mu",
+        "request_origin": origin,
+        "cors_allowed": origin in ALLOWED_ORIGINS,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 # ==================== Authentication Routes ====================
 
