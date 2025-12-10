@@ -89,12 +89,29 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 async def init_admin_user():
     """Initialize admin user if not exists"""
     try:
+<<<<<<< HEAD
         logger.info("Skipping MongoDB admin initialization for PayPal testing")
         # Ne faites RIEN - laissez l'application démarrer
         return
     except Exception as e:
         logger.error(f"MongoDB init error (ignored for testing): {str(e)}")
         # Ne pas lever l'exception - laisser l'application démarrer
+=======
+        logger.info("Skipping MongoDB admin initialization for testing")
+        # Ne faites RIEN - laissez passer
+        return
+    except Exception as e:
+        logger.error(f"MongoDB init error (ignored for now): {str(e)}")
+    
+    if admin_count == 0:
+        admin_user = User(
+            username="admin",
+            email="admin@chronopost.mu",
+            hashed_password=get_password_hash("admin123"),
+            is_admin=True,
+            is_active=True
+        )
+>>>>>>> 45effc7de65fc5fdaa972295cfa15b7ea0968587
         
         doc = admin_user.model_dump()
         doc['created_at'] = doc['created_at'].isoformat()
