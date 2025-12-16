@@ -1,0 +1,2 @@
+bashREACT_APP_BACKEND_URL=https://portal.merchant.cim.mu
+REACT_APP_BACKEND_URL=https://backend-chronopost.up.railway.app

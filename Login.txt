@@ -1,0 +1,37 @@
+https://ws01.ffdx.net/v8/etrack.aspx?sessionid=0BC3D96F559BDF45AAD015931E083937
+https://eservices21.mra.mu/login
+
+Adresse de connexion :	ceinture.o2switch.net:2083
+Nom d'utilisateur:	yacu0019
+Mot de passe:	4H9A-WkUz-vfg(
+
+Acces SSH
+id_rsa
+4H9A-WkUz-vfg(
+
+Link:
+portal.merchant.ciml.mu
+
+compte ftp : portal@ portal.merchant.ciml.mu
+@Security261
+
+PAypal:
+Oceanemootosamy@gmail.com
+Bayaram@852++
+55347989
+
+Mongodb
+oceanemootosamy_db_user
+oUpIEsNbUXBq5NaW
+mongodb+srv://oceanemootosamy_db_user:<oUpIEsNbUXBq5NaW>@cluster0.seyh6ck.mongodb.net/?appName=Cluster0
+Database user :
+chronopostAdmin
+ChronoMauritius2024
+
+
+Github
+Mootosamy
+Bayaram@852++
+
+Railway
+MongoDB
